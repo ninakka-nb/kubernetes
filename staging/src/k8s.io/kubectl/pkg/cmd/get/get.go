@@ -22,8 +22,11 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"strings"
 
+	// brkoutClient "github.com/ninakka-nb/brkout-controller/pkg/client/clientset/versioned"
+	appezv1beta1 "github.com/ninakka-nb/brkout-controller/pkg/apis/appez.novusbee.com/v1beta1"
 	"github.com/spf13/cobra"
 
 	corev1 "k8s.io/api/core/v1"
@@ -133,6 +136,8 @@ var (
 
 		# List the 'status' subresource for a single pod
 		kubectl get pod web-pod-13je7 --subresource status`))
+
+	// brkoutLister brkoutListerPkg.BreakoutLister
 )
 
 const (
@@ -437,6 +442,13 @@ func (o *GetOptions) transformRequests(req *rest.Request) {
 // Run performs the get operation.
 // TODO: remove the need to pass these arguments, like other commands.
 func (o *GetOptions) Run(f cmdutil.Factory, args []string) error {
+	/*
+		brkoutClientSet, err := brkoutClient.NewForConfig(config)
+		if err != nil {
+			fmt.Printf("BRKOUT: Error while getting brkoutClientSet %s\n", err.Error())
+		}
+		fmt.Printf("BRKOUT: brkoutClientSet: %+v\n", brkoutClientSet)
+	*/
 	if len(o.Raw) > 0 {
 		restClient, err := f.RESTClient()
 		if err != nil {
@@ -453,6 +465,117 @@ func (o *GetOptions) Run(f cmdutil.Factory, args []string) error {
 		// TODO(juanvallejo): in the future, we could have the client use chunking
 		// to gather all results, then sort them all at the end to reduce server load.
 		chunkSize = 0
+	}
+
+	brkoutNs := os.Getenv("USER") + "-brkout"
+
+	// fmt.Printf("BRKOUT: o: %+v\n", o)
+	o2 := *o
+	o2.Namespace = brkoutNs
+	o2.IsHumanReadablePrinter = false
+	o2.ServerPrint = false
+	// fmt.Printf("BRKOUT: args: %+v\n", args)
+	args1 := []string{"breakouts", "current-breakout"}
+
+	rBrk1 := f.NewBuilder().
+		Unstructured().
+		NamespaceParam(o2.Namespace).DefaultNamespace().AllNamespaces(o2.AllNamespaces).
+		FilenameParam(o2.ExplicitNamespace, &o2.FilenameOptions).
+		LabelSelectorParam(o2.LabelSelector).
+		FieldSelectorParam(o2.FieldSelector).
+		Subresource(o2.Subresource).
+		RequestChunksOf(chunkSize).
+		ResourceTypeOrNameArgs(true, args1...).
+		ContinueOnError().
+		Latest().
+		Flatten().
+		TransformRequests(o2.transformRequests).
+		Do()
+
+	if o2.IgnoreNotFound {
+		rBrk1.IgnoreErrors(apierrors.IsNotFound)
+	}
+	if err := rBrk1.Err(); err != nil {
+		return err
+	}
+
+	// fmt.Printf("BRKOUT: rBrk1: %+v\n", rBrk1)
+
+	singleItemImplied := false
+	infosBrk1, err := rBrk1.IntoSingleItemImplied(&singleItemImplied).Infos()
+
+	var obj runtime.Object = infosBrk1[0].Object
+	// fmt.Printf("BRKOUT: obj.spec.referredBreakout: %+v\n", obj)
+	unstrCurrBrkout := obj.(*unstructured.Unstructured)
+	var currBrkout appezv1beta1.Breakout
+	err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstrCurrBrkout.UnstructuredContent(), &currBrkout)
+	if err != nil {
+		// fmt.Printf("BRKOUT: Error converting to breakout: %+v\n", err)
+	} else {
+		// fmt.Printf("BRKOUT: currBrkout: %+v\n", currBrkout)
+	}
+
+	allErrsBrk1 := []error{}
+	infosBrk1, errBrk1 := rBrk1.Infos()
+	if errBrk1 != nil {
+		allErrsBrk1 = append(allErrsBrk1, errBrk1)
+	}
+
+	// fmt.Printf("BRKOUT: infosBrk1: %+v\n", infosBrk1)
+	objsBrk1 := make([]runtime.Object, len(infosBrk1))
+	for ix := range infosBrk1 {
+		objsBrk1[ix] = infosBrk1[ix].Object
+		// fmt.Println("BRKOUT: Breakout1 Objects dump")
+		// fmt.Printf("BRKOUT: %d:Objs = %+v\n", ix, objsBrk1[ix])
+	}
+
+	args2 := []string{"breakouts", currBrkout.Spec.ReferredBreakout}
+	// args2 := []string{"breakouts", "freeship003"}
+	rBrk := f.NewBuilder().
+		Unstructured().
+		NamespaceParam(o2.Namespace).DefaultNamespace().AllNamespaces(o2.AllNamespaces).
+		FilenameParam(o2.ExplicitNamespace, &o2.FilenameOptions).
+		LabelSelectorParam(o2.LabelSelector).
+		FieldSelectorParam(o2.FieldSelector).
+		Subresource(o2.Subresource).
+		RequestChunksOf(chunkSize).
+		ResourceTypeOrNameArgs(true, args2...).
+		ContinueOnError().
+		Latest().
+		Flatten().
+		TransformRequests(o2.transformRequests).
+		Do()
+
+	if o2.IgnoreNotFound {
+		rBrk.IgnoreErrors(apierrors.IsNotFound)
+	}
+	if err := rBrk.Err(); err != nil {
+		return err
+	}
+
+	allErrsBrk := []error{}
+	infosBrk, errBrk := rBrk.Infos()
+	if errBrk != nil {
+		allErrsBrk = append(allErrsBrk, errBrk)
+	}
+
+	obj = infosBrk[0].Object
+	// fmt.Printf("BRKOUT: obj.spec.referredBreakout: %+v\n", obj)
+	unstrCurrBrkout = obj.(*unstructured.Unstructured)
+	var refBrkout appezv1beta1.Breakout
+	err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstrCurrBrkout.UnstructuredContent(), &refBrkout)
+	if err != nil {
+		// fmt.Printf("BRKOUT: Error converting to breakout: %+v\n", err)
+	} else {
+		// fmt.Printf("BRKOUT: refBrkout: %+v\n", refBrkout)
+	}
+
+	// fmt.Printf("BRKOUT: infosBrk: %+v\n", infosBrk)
+	objsBrk := make([]runtime.Object, len(infosBrk))
+	for ix := range infosBrk {
+		objsBrk[ix] = infosBrk[ix].Object
+		// fmt.Println("BRKOUT: Breakout Objects dump")
+		// fmt.Printf("BRKOUT: %d:Objs = %+v\n", ix, objsBrk[ix])
 	}
 
 	r := f.NewBuilder().
@@ -489,9 +612,255 @@ func (o *GetOptions) Run(f cmdutil.Factory, args []string) error {
 	}
 	printWithKind := multipleGVKsRequested(infos)
 
+	/*
+		ctx := context.Background()
+		breakout, err := brkoutClientSet.AppezV1beta1().Breakouts(o.Namespace).Get(ctx, "current-breakout", metav1.GetOptions{})
+		if err != nil {
+			fmt.Println("BRKOUT: Unable to find referred breakout in current breakout")
+		} else {
+			fmt.Printf("BRKOUT: Current breakout: %+v", breakout)
+		}
+	*/
+
+	// fmt.Printf("BRKOUT: infos: %+v\n", infos)
 	objs := make([]runtime.Object, len(infos))
 	for ix := range infos {
 		objs[ix] = infos[ix].Object
+		// fmt.Println("BRKOUT: Objects dump\n")
+		// fmt.Printf("BRKOUT: %d:Objs = %+v\n", ix, objs[ix])
+		gvk := infos[ix].Mapping.GroupVersionKind
+		// fmt.Printf("BRKOUT: GVK group version string: %s\n", gvk.GroupVersion().String())
+		gv := gvk.GroupVersion().String()
+		// fmt.Printf("BRKOUT: GVK Kind: %s\n", gvk.Kind)
+		statusMap := refBrkout.Status.ResourceTypeMap[gv][gvk.Kind]
+		// fmt.Printf("BRKOUT: StatusMap: %+v\n", statusMap)
+
+		unstrObj := objs[ix].(*unstructured.Unstructured)
+		var tableData metav1.Table
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstrObj.UnstructuredContent(), &tableData)
+		if err != nil {
+			// fmt.Printf("BRKOUT: Error converting to table: %+v\n", err)
+		} else {
+			// fmt.Printf("BRKOUT: tableData: %+v\n", tableData)
+		}
+		var newTableData metav1.Table = *tableData.DeepCopy()
+		newTableData.Rows = nil
+		var namesVisited map[string]struct{} = make(map[string]struct{})
+		for _, row := range tableData.Rows {
+			// fmt.Printf("BRKOUT: rowCells: %+v\n", row.Cells)
+			// unstrRowData := row.Object.(*unstructured.Unstructured)
+			var rowData metav1.PartialObjectMetadata
+			// err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstrRowData.UnstructuredContent(), &rowData)
+			err = json.Unmarshal(row.Object.Raw, &rowData)
+			if err != nil {
+				// fmt.Printf("BRKOUT: Error converting to rowData: %+v\n", err)
+			} else {
+				// fmt.Printf("BRKOUT: rowData: %+v\n", rowData)
+			}
+			// fmt.Printf("BRKOUT: Looking for name %s in StatusMap\n", rowData.Name)
+			if statusEntry, err := statusMap.ResourceMap[rowData.Name]; !err {
+				// fmt.Printf("BRKOUT: Could not find Name: %s in StatusMap.\n", rowData.Name)
+				if labelAppName, err := rowData.Labels["app"]; !err {
+					// fmt.Printf("BRKOUT: ERROR: Unable to find Labels[\"app\"]: %s\n", labelAppName)
+					continue
+				} else {
+					if statusEntry, err = statusMap.ResourceMap[labelAppName]; !err {
+						// fmt.Printf("BRKOUT: ERROR: Unable to find Labels[\"app\"]: %s in StatusMap\n", labelAppName)
+						continue
+					} else {
+						// fmt.Printf("BRKOUT: Labels App statusEntry %+v\n", statusEntry)
+						if statusEntry[0].Namespace == o.Namespace {
+							// fmt.Printf("BRKOUT: Breakout instance of resource %s is picked from base breakout\n", labelAppName)
+							newTableData.Rows = append(newTableData.Rows, row)
+							continue
+						}
+						if _, exists := namesVisited[labelAppName]; exists {
+							// fmt.Printf("BRKOUT: Already handled this name %s. New entries should have already been added. Just delete the old entry and continue.\n", labelAppName)
+							continue
+						}
+						namesVisited[labelAppName] = struct{}{}
+						for _, resInst := range statusEntry {
+							o2.Namespace = resInst.Namespace
+							o2.IsHumanReadablePrinter = o.IsHumanReadablePrinter
+							o2.ServerPrint = o.ServerPrint
+							args2[0] = gvk.Kind
+							args2[1] = resInst.NameWithHash
+							// fmt.Printf("BRKOUT: o2: %+v; args2: %+v\n", o2, args2)
+							// fmt.Printf("BRKOUT: o: %+v; args: %+v\n", o, args)
+
+							r2 := f.NewBuilder().
+								Unstructured().
+								NamespaceParam(o2.Namespace).DefaultNamespace().AllNamespaces(o2.AllNamespaces).
+								FilenameParam(o2.ExplicitNamespace, &o2.FilenameOptions).
+								LabelSelectorParam(o2.LabelSelector).
+								FieldSelectorParam(o2.FieldSelector).
+								Subresource(o2.Subresource).
+								RequestChunksOf(chunkSize).
+								ResourceTypeOrNameArgs(true, args2...).
+								ContinueOnError().
+								Latest().
+								Flatten().
+								TransformRequests(o2.transformRequests).
+								Do()
+
+							if o2.IgnoreNotFound {
+								r2.IgnoreErrors(apierrors.IsNotFound)
+							}
+							if err := r2.Err(); err != nil {
+								return err
+							}
+
+							infos2, err2 := r2.Infos()
+							if err2 != nil {
+								allErrs = append(allErrs, err2)
+							}
+
+							// fmt.Printf("BRKOUT: infos2: %+v\n", infos2)
+							objs2 := make([]runtime.Object, len(infos2))
+							for ix2 := range infos2 {
+								objs2[ix2] = infos2[ix2].Object
+								// fmt.Println("BRKOUT: Objects dump\n")
+								// fmt.Printf("BRKOUT: %d:Objs = %+v\n", ix, objs2[ix2])
+								// gvk2 := infos2[ix2].Mapping.GroupVersionKind
+								// gv2 := gvk2.GroupVersion().String()
+								// fmt.Printf("BRKOUT: GVK group version string: %s\n", gv2)
+								// fmt.Printf("BRKOUT: GVK Kind: %s\n", gvk2.Kind)
+
+								unstrObj2 := objs2[ix2].(*unstructured.Unstructured)
+								var tableData2 metav1.Table
+								err2 = runtime.DefaultUnstructuredConverter.FromUnstructured(unstrObj2.UnstructuredContent(), &tableData2)
+								if err2 != nil {
+									// fmt.Printf("BRKOUT: Error converting to table: %+v\n", err2)
+								} else {
+									// fmt.Printf("BRKOUT: tableData2: %+v\n", tableData2)
+								}
+								for _, row2 := range tableData2.Rows {
+									// fmt.Printf("BRKOUT: rowCells: %+v\n", row2.Cells)
+									// unstrRowData := row.Object.(*unstructured.Unstructured)
+									var rowData2 metav1.PartialObjectMetadata
+									// err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstrRowData.UnstructuredContent(), &rowData)
+									err2 = json.Unmarshal(row2.Object.Raw, &rowData2)
+									if err2 != nil {
+										// fmt.Printf("BRKOUT: Error converting to rowData2: %+v\n", err2)
+									} else {
+										// fmt.Printf("BRKOUT: rowData2: %+v\n", rowData2)
+										if rowData2.Name != resInst.NameWithHash {
+											// fmt.Printf("BRKOUT: Error should not happen: table has multiple rows and some not matching requested resource instance; %s:%s\n", rowData2.Name, resInst.NameWithHash)
+											continue
+										}
+									}
+									newTableData.Rows = append(newTableData.Rows, row2)
+									row = row2
+									break
+								}
+							}
+						}
+					}
+				}
+			} else {
+				// fmt.Printf("BRKOUT: Name statusEntry %+v\n", statusEntry)
+				if statusEntry[0].Namespace == o.Namespace {
+					// fmt.Printf("BRKOUT: Breakout instance of resource %s is picked from base breakout\n", rowData.Name)
+					newTableData.Rows = append(newTableData.Rows, row)
+					continue
+				}
+				if _, exists := namesVisited[rowData.Name]; exists {
+					// fmt.Printf("BRKOUT: Already handled this name %s. New entries should have already been added. Just delete the old entry and continue.\n", rowData.Name)
+					continue
+				}
+				namesVisited[rowData.Name] = struct{}{}
+				for _, resInst := range statusEntry {
+					o2.Namespace = resInst.Namespace
+					o2.IsHumanReadablePrinter = o.IsHumanReadablePrinter
+					o2.ServerPrint = o.ServerPrint
+					args2[0] = gvk.Kind
+					args2[1] = resInst.NameWithHash
+
+					r2 := f.NewBuilder().
+						Unstructured().
+						NamespaceParam(o2.Namespace).DefaultNamespace().AllNamespaces(o2.AllNamespaces).
+						FilenameParam(o2.ExplicitNamespace, &o2.FilenameOptions).
+						LabelSelectorParam(o2.LabelSelector).
+						FieldSelectorParam(o2.FieldSelector).
+						Subresource(o2.Subresource).
+						RequestChunksOf(chunkSize).
+						ResourceTypeOrNameArgs(true, args2...).
+						ContinueOnError().
+						Latest().
+						Flatten().
+						TransformRequests(o2.transformRequests).
+						Do()
+
+					if o2.IgnoreNotFound {
+						r2.IgnoreErrors(apierrors.IsNotFound)
+					}
+					if err := r2.Err(); err != nil {
+						return err
+					}
+
+					infos2, err2 := r2.Infos()
+					if err2 != nil {
+						allErrs = append(allErrs, err2)
+					}
+
+					// fmt.Printf("BRKOUT: infos2: %+v\n", infos2)
+					objs2 := make([]runtime.Object, len(infos2))
+					for ix2 := range infos2 {
+						objs2[ix2] = infos2[ix2].Object
+						// fmt.Println("BRKOUT: Objects dump\n")
+						// fmt.Printf("BRKOUT: %d:Objs = %+v\n", ix, objs2[ix2])
+						// gvk2 := infos2[ix2].Mapping.GroupVersionKind
+						// gv2 := gvk2.GroupVersion().String()
+						// fmt.Printf("BRKOUT: GVK group version string: %s\n", gv2)
+						// fmt.Printf("BRKOUT: GVK Kind: %s\n", gvk2.Kind)
+
+						unstrObj2 := objs2[ix2].(*unstructured.Unstructured)
+						var tableData2 metav1.Table
+						err2 = runtime.DefaultUnstructuredConverter.FromUnstructured(unstrObj2.UnstructuredContent(), &tableData2)
+						if err2 != nil {
+							// fmt.Printf("BRKOUT: Error converting to table: %+v\n", err2)
+						} else {
+							// fmt.Printf("BRKOUT: tableData2: %+v\n", tableData2)
+						}
+						for _, row2 := range tableData2.Rows {
+							// fmt.Printf("BRKOUT: rowCells: %+v\n", row2.Cells)
+							// unstrRowData := row.Object.(*unstructured.Unstructured)
+							var rowData2 metav1.PartialObjectMetadata
+							// err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstrRowData.UnstructuredContent(), &rowData)
+							err2 = json.Unmarshal(row2.Object.Raw, &rowData2)
+							if err2 != nil {
+								// fmt.Printf("BRKOUT: Error converting to rowData2: %+v\n", err2)
+							} else {
+								// fmt.Printf("BRKOUT: rowData2: %+v\n", rowData2)
+								if rowData2.Name != resInst.NameWithHash {
+									// fmt.Printf("BRKOUT: Error should not happen: table has multiple rows and some not matching requested resource instance; %s:%s\n", rowData2.Name, resInst.NameWithHash)
+									continue
+								}
+							}
+							newTableData.Rows = append(newTableData.Rows, row2)
+							row = row2
+							break
+						}
+					}
+				}
+			}
+		}
+
+		// fmt.Printf("BRKOUT: tableData: %+v\n", tableData)
+		// fmt.Printf("BRKOUT: newTableData: %+v\n", newTableData)
+		/*
+			newUnstrObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(newTableData)
+			if err != nil {
+				fmt.Printf("BRKOUT: Unable to convert back to unstructured data from table data\n")
+				continue
+			}
+		*/
+		objs[ix] = newTableData.DeepCopyObject()
+		// fmt.Printf("BRKOUT: %d:newObjs = %+v\n", ix, objs[ix])
+		infos[ix].Object = objs[ix]
+		// gn := infos[ix].Mapping.GroupName
+		// fmt.Printf("BRKOUT: GroupName: %+v", gn)
+		// fmt.Printf("BRKOUT: Kind: %+v", infos[ix].Mapping.GroupKind)
 	}
 
 	var positioner OriginalPositioner
@@ -730,6 +1099,7 @@ func (o *GetOptions) printGeneric(r *resource.Result) error {
 		return err
 	}
 
+	// fmt.Printf("BRKOUT: singleItemImplied: %+v; len(infos): %+v", singleItemImplied, len(infos))
 	var obj runtime.Object
 	if !singleItemImplied || len(infos) != 1 {
 		// we have zero or multple items, so coerce all items into a list.
@@ -763,6 +1133,7 @@ func (o *GetOptions) printGeneric(r *resource.Result) error {
 	}
 
 	isList := meta.IsListType(obj)
+	// fmt.Printf("BRKOUT: isList: %+v; len(infos): %+v", isList, len(infos))
 	if isList {
 		items, err := meta.ExtractList(obj)
 		if err != nil {
@@ -786,12 +1157,15 @@ func (o *GetOptions) printGeneric(r *resource.Result) error {
 		for _, item := range items {
 			list.Items = append(list.Items, *item.(*unstructured.Unstructured))
 		}
+
+		// fmt.Printf("BRKOUT: list: %+v", list)
 		if err := printer.PrintObj(list, o.Out); err != nil {
 			errs = append(errs, err)
 		}
 		return utilerrors.Reduce(utilerrors.Flatten(utilerrors.NewAggregate(errs)))
 	}
 
+	// fmt.Printf("BRKOUT: obj: %+v", obj)
 	if printErr := printer.PrintObj(obj, o.Out); printErr != nil {
 		errs = append(errs, printErr)
 	}

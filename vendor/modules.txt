@@ -507,6 +507,9 @@ github.com/munnerz/goautoneg
 # github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f
 ## explicit
 github.com/mxk/go-flowrate/flowrate
+# github.com/ninakka-nb/brkout-controller v0.0.3
+## explicit; go 1.22
+github.com/ninakka-nb/brkout-controller/pkg/apis/appez.novusbee.com/v1beta1
 # github.com/onsi/ginkgo/v2 v2.15.0
 ## explicit; go 1.20
 github.com/onsi/ginkgo/v2
@@ -1190,23 +1193,23 @@ gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
-# k8s.io/api v0.0.0 => ./staging/src/k8s.io/api
+# k8s.io/api v0.27.3 => ./staging/src/k8s.io/api
 ## explicit; go 1.22.0
-# k8s.io/apiextensions-apiserver v0.0.0 => ./staging/src/k8s.io/apiextensions-apiserver
+# k8s.io/apiextensions-apiserver v0.27.1 => ./staging/src/k8s.io/apiextensions-apiserver
 ## explicit; go 1.22.0
-# k8s.io/apimachinery v0.0.0 => ./staging/src/k8s.io/apimachinery
+# k8s.io/apimachinery v0.27.3 => ./staging/src/k8s.io/apimachinery
 ## explicit; go 1.22.0
 # k8s.io/apiserver v0.0.0 => ./staging/src/k8s.io/apiserver
 ## explicit; go 1.22.0
 # k8s.io/cli-runtime v0.0.0 => ./staging/src/k8s.io/cli-runtime
 ## explicit; go 1.22.0
-# k8s.io/client-go v0.0.0 => ./staging/src/k8s.io/client-go
+# k8s.io/client-go v0.27.3 => ./staging/src/k8s.io/client-go
 ## explicit; go 1.22.0
 # k8s.io/cloud-provider v0.0.0 => ./staging/src/k8s.io/cloud-provider
 ## explicit; go 1.22.0
 # k8s.io/cluster-bootstrap v0.0.0 => ./staging/src/k8s.io/cluster-bootstrap
 ## explicit; go 1.22.0
-# k8s.io/code-generator v0.0.0 => ./staging/src/k8s.io/code-generator
+# k8s.io/code-generator v0.26.3 => ./staging/src/k8s.io/code-generator
 ## explicit; go 1.22.0
 # k8s.io/component-base v0.0.0 => ./staging/src/k8s.io/component-base
 ## explicit; go 1.22.0
@@ -1330,6 +1333,9 @@ sigs.k8s.io/apiserver-network-proxy/konnectivity-client/pkg/client
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client/pkg/client/metrics
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client/pkg/common/metrics
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client/proto/client
+# sigs.k8s.io/gateway-api v0.7.1
+## explicit; go 1.19
+sigs.k8s.io/gateway-api/apis/v1beta1
 # sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd
 ## explicit; go 1.18
 sigs.k8s.io/json

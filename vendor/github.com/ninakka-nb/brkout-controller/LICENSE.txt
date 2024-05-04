@@ -1,0 +1,7 @@
+Repository: brkout-controller
+Authors: Siddhartha K. Khaitan and Nithin M. Nakka
+
+Copyright (c) 2024 RightElast Inc.
+
+This software cannot be copied, reproduced, or distributed
+without the explicit permissions of the Authors.
